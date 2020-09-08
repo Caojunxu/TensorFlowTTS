@@ -30,8 +30,8 @@ from tensorflow_tts.processor import BaseProcessor
 
 _pad = ["pad"]
 _eos = ["eos"]
-_pause = ["sil", "#0", "#1", "#2", "#3"]
-_punctuation =list(',.?!"，、。？！；：”“')
+_pause = ["sil", "#0"]
+_punctuation = list(',.?!":;，、。？！；：”“')
 _initials = [
     "^",
     "b",
@@ -56,9 +56,7 @@ _initials = [
     "z",
     "zh",
 ]
-
 _tones = ["1", "2", "3", "4", "5"]
-
 _finals = [
     "a",
     "ai",
@@ -101,7 +99,7 @@ _finals = [
 ]
 
 # BAKER_SYMBOLS = _pad + _pause + _initials + [i + j for i in _finals for j in _tones] + _eos
-BAKER_SYMBOLS = _pad + _pause + _punctuation+ _initials + [i + j for i in _finals for j in _tones] + _eos
+Chinese_SYMBOLS = _pad + _pause + _punctuation + _initials + [i + j for i in _finals for j in _tones] + _eos
 
 PINYIN_DICT = {
     "a": ("^", "a"),
@@ -523,7 +521,6 @@ PINYIN_DICT = {
     "zuo": ("z", "uo"),
 }
 
-
 zh_pattern = re.compile("[\u4e00-\u9fa5]")
 
 
@@ -538,11 +535,10 @@ class MyConverter(NeutralToneWith5Mixin, DefaultConverter):
 
 
 @dataclass
-class BakerProcessor(BaseProcessor):
-
+class ChineseProcessor(BaseProcessor):
     pinyin_dict: Dict[str, Tuple[str, str]] = field(default_factory=lambda: PINYIN_DICT)
     cleaner_names: str = None
-    target_rate: int = 24000
+    target_rate: int = 22050
     speaker_name: str = "baker"
 
     def __post_init__(self):
@@ -556,119 +552,62 @@ class BakerProcessor(BaseProcessor):
         items = []
         if self.data_dir:
             with open(
-                os.path.join(self.data_dir, "ProsodyLabeling/000001-010000.txt"),
-                encoding="utf-8",
+                    os.path.join(self.data_dir, "ProsodyLabeling/000001-010000.txt"),
+                    encoding="utf-8",
             ) as ttf:
                 lines = ttf.readlines()
                 for idx in range(0, len(lines), 2):
-                    utt_id, chn_char = lines[idx].strip().split()
-                    pinyin = lines[idx + 1].strip().split()
+                    utt_id, chn_char = lines[idx].strip().split('\t')
+                    pinyin = lines[idx + 1].strip()
                     if "IY1" in pinyin or "Ｂ" in chn_char:
                         print(f"Skip this: {utt_id} {chn_char} {pinyin}")
                         continue
                     # phonemes = self.get_phoneme_from_char_and_pinyin(chn_char, pinyin)
                     phonemes = self.get_phoneme(chn_char, pinyin)
                     wav_path = os.path.join(self.data_dir, "Wave", "%s.wav" % utt_id)
-                    items.append(
-                        [" ".join(phonemes), wav_path, utt_id, self.speaker_name,chn_char]
-                    )
+                    if phonemes is not None:
+                        items.append(
+                            [" ".join(phonemes), wav_path, utt_id, self.speaker_name, chn_char]
+                        )
             self.items = items
+            # print(len(items))
 
-    def get_phoneme_from_char_and_pinyin(self, chn_char, pinyin):
-        # we do not need #4, use sil to replace it
-        chn_char = chn_char.replace("#4", "")
-        char_len = len(chn_char)
-        i, j = 0, 0
+    def get_phoneme(self, chn_char, pinyin):
         result = ["sil"]
-        while i < char_len:
-            cur_char = chn_char[i]
-            if is_zh(cur_char):
-                if pinyin[j][:-1] not in self.pinyin_dict:
-                    assert chn_char[i + 1] == "儿"
-                    assert pinyin[j][-2] == "r"
-                    tone = pinyin[j][-1]
-                    a = pinyin[j][:-2]
-                    a1, a2 = self.pinyin_dict[a]
-                    result += [a1, a2 + tone, "er5"]
-                    if i + 2 < char_len and chn_char[i + 2] != "#":
-                        result.append("#0")
-
-                    i += 2
-                    j += 1
+        punc = pinyin[-1]
+        pinyin = pinyin[:-1].split()
+        for word in pinyin:
+            if word == "/":
+                result.append("#0")
+            elif word in _punctuation:
+                result.append(word)
+            elif word.isupper():
+                result.append(word)
+                return None
+            elif word.islower():
+                if word[-1] not in _tones:
+                    tone=str(5)
+                    a = word
                 else:
-                    tone = pinyin[j][-1]
-                    a = pinyin[j][:-1]
-                    a1, a2 = self.pinyin_dict[a]
-                    result += [a1, a2 + tone]
-
-                    if i + 1 < char_len and chn_char[i + 1] != "#":
-                        result.append("#0")
-
-                    i += 1
-                    j += 1
-            elif cur_char == "#":
-                result.append(chn_char[i : i + 2])
-                i += 2
+                    tone = word[-1]
+                    a = word[:-1]
+                a1,a2 = self.pinyin_dict[a]
+                result += [a1,a2+tone]
             else:
-                # ignore the unknown char and punctuation
-                # result.append(chn_char[i])
-                i += 1
-        if result[-1] == "#0":
-            result = result[:-1]
+                continue
 
-        result.append("sil")
-        assert j == len(pinyin)
+        result.append(punc)
+        result.append( "sil")
         return result
-
-    def get_phoneme(self,chn_char,pinyin):
-        chn_char = chn_char.replace("#4", "")
-        char_len = len(chn_char)
-        i, j = 0, 0
-        result = ["sil"]
-        print(pinyin)
-        while i < char_len:
-            cur_char = chn_char[i]
-            if is_zh(cur_char):
-                if pinyin[j][:-1] not in self.pinyin_dict:
-                    assert chn_char[i + 1] == "儿"
-                    assert pinyin[j][-2] == "r"
-                    tone = pinyin[j][-1]
-                    a = pinyin[j][:-2]
-                    a1, a2 = self.pinyin_dict[a]
-                    result += [a1, a2 + tone, "er5"]
-
-                    i += 2
-                    j += 1
-                else:
-                    tone = pinyin[j][-1]
-                    a = pinyin[j][:-1]
-                    a1, a2 = self.pinyin_dict[a]
-                    result += [a1, a2 + tone]
-                    i += 1
-                    j += 1
-            elif cur_char == "#":
-                result.append(chn_char[i: i + 2])
-                i += 2
-            elif cur_char in _punctuation:
-                result.append(cur_char)
-                i+=1
-            else:
-                i+=1
-
-        if result[-1] == "#0":
-            result = result[:-1]
-
-        result.append("sil")
-        assert j == len(pinyin)
-        return result
-
 
     def get_one_sample(self, item):
-        text, wav_file, utt_id, speaker_name,chn_char = item
+        text, wav_file, utt_id, speaker_name, chn_char = item
 
         # normalize audio signal to be [-1, 1], soundfile already norm.
         audio, rate = sf.read(wav_file)
         audio = audio.astype(np.float32)
+        audio = audio / np.abs(audio).max() * 0.999
+        # print(rate,self.target_rate)
         if rate != self.target_rate:
             assert rate > self.target_rate
             audio = librosa.resample(audio, rate, self.target_rate)
@@ -715,7 +654,7 @@ class BakerProcessor(BaseProcessor):
         for symbol in text.split():
             idx = self.symbol_to_id[symbol]
             sequence.append(idx)
-        
+
         # add eos tokens
         sequence += [self.eos_id]
         return sequence
