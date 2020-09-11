@@ -30,8 +30,8 @@ from tensorflow_tts.processor import BaseProcessor
 
 _pad = ["pad"]
 _eos = ["eos"]
-_pause = ["sil", "#0"]
-_punctuation = list(',.?!":;，、。？！；：”“')
+_pause = ["sil", "#0", "#1", "#2", "#3"]
+_punctuation =list(',.?!"，、。？！；：”“')
 _initials = [
     "^",
     "b",
@@ -56,7 +56,9 @@ _initials = [
     "z",
     "zh",
 ]
+
 _tones = ["1", "2", "3", "4", "5"]
+
 _finals = [
     "a",
     "ai",
@@ -521,6 +523,7 @@ PINYIN_DICT = {
     "zuo": ("z", "uo"),
 }
 
+
 zh_pattern = re.compile("[\u4e00-\u9fa5]")
 
 
@@ -552,8 +555,8 @@ class ChineseProcessor(BaseProcessor):
         items = []
         if self.data_dir:
             with open(
-                    os.path.join(self.data_dir, "ProsodyLabeling/000001-010000.txt"),
-                    encoding="utf-8",
+                os.path.join(self.data_dir, "ProsodyLabeling/000001-010000.txt"),
+                encoding="utf-8",
             ) as ttf:
                 lines = ttf.readlines()
                 for idx in range(0, len(lines), 2):
@@ -658,5 +661,3 @@ class ChineseProcessor(BaseProcessor):
         # add eos tokens
         sequence += [self.eos_id]
         return sequence
-
-

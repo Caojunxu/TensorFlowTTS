@@ -188,8 +188,6 @@ def gen_audio_features(item, config):
     utt_id = item["utt_id"]
     rate = item["rate"]
 
-    # print(np.abs(audio).max())
-
     # check audio properties
     assert len(audio.shape) == 1, f"{utt_id} seems to be multi-channel signal."
     assert np.abs(audio).max() <= 1.0, f"{utt_id} is different from 16 bit PCM."
@@ -199,11 +197,11 @@ def gen_audio_features(item, config):
     if rate != config["sampling_rate"]:
         audio = librosa.resample(audio, rate, config["sampling_rate"])
         logging.info(f"{utt_id} sampling rate is {rate}, not {config['sampling_rate']}, we resample it.")
-    # print(np.abs(audio).max())
+
     # trim silence
     if config["trim_silence"]:
         if "trim_mfa" in config and config["trim_mfa"]:
-            _, item["text_ids"], audio= ph_based_trim(
+            _, item["text_ids"], audio = ph_based_trim(
                 config,
                 utt_id,
                 item["text_ids"],
@@ -224,7 +222,7 @@ def gen_audio_features(item, config):
                 hop_length=config["trim_hop_size"],
             )
 
-    # # resample audio if necessary
+    # resample audio if necessary
     if "sampling_rate_for_feats" in config:
         audio = librosa.resample(audio, rate, config["sampling_rate_for_feats"])
         sampling_rate = config["sampling_rate_for_feats"]

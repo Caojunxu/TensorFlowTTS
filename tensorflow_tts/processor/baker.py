@@ -101,7 +101,7 @@ _finals = [
 ]
 
 # BAKER_SYMBOLS = _pad + _pause + _initials + [i + j for i in _finals for j in _tones] + _eos
-BAKER_SYMBOLS = _pad + _pause + _punctuation+ _initials + [i + j for i in _finals for j in _tones] + _eos
+BAKER_SYMBOLS = _pad + _pause + _punctuation + _initials + [i + j for i in _finals for j in _tones] + _eos
 
 PINYIN_DICT = {
     "a": ("^", "a"),
@@ -715,9 +715,7 @@ class BakerProcessor(BaseProcessor):
         for symbol in text.split():
             idx = self.symbol_to_id[symbol]
             sequence.append(idx)
-        
+
         # add eos tokens
         sequence += [self.eos_id]
         return sequence
-
-
